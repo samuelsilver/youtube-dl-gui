@@ -206,12 +206,12 @@ class YouTubeDownloaderThread(threading.Thread):
         path = os.path.join(self.directory, self.filename)
         #TODO: refactor this
         if sys.platform.lower().startswith("win"):
-            subprocess.call(["cmd", "/C", "start", "python", "youtube-dl.py",
-                             "-o", path, self.url])
+            cmdlist = ["cmd", "/C", "start", "python", "youtube-dl.py",
+                       "-o", path, self.url]
             if self.to_mp3:
-                subprocess.call(["cmd", "/C", "start", "ffmpeg.exe",
-                                 "-i", path, "-ar", "44100", "-ab", "60k",
-                                 "-ac", "2", path[:-3] + "mp3"])
+                cmdlist.append("--extract-audio")
+                cmdlist.append("--audio-format=mp3")
+            subprocess.call(cmdlist)
             
 class CommandLineBuilder: pass
 
