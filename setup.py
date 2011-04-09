@@ -1,4 +1,6 @@
 from distutils.core import setup
 import py2exe
 
-setup(console=["youtube-dl.py", "youtube-dl-gui.py"])
+setup(console=["youtube-dl.py", "youtube-dl-gui.py"],
+      name="youtube-dl-gui",
+      author="Fredy Wijaya")
