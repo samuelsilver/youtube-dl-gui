@@ -164,7 +164,7 @@ class EditableTextListCtrl(wx.ListCtrl, TextEditMixin):
         if col == 1: return
         else: TextEditMixin.OpenEditor(self, col, row)
         
-class FileNameSanitizer:
+class FileNameSanitizer(object):
     def __init__(self):
         self.illegal_chars = ["\\", "/", ":", "*", "?", "\"", "<", ">", "|"]
         
@@ -207,17 +207,18 @@ class YouTubeDownloaderThread(threading.Thread):
         #TODO: refactor this
         if sys.platform.lower().startswith("win"):
             cmdlist = ["cmd", "/C", "start", "python", "youtube-dl.py",
-                       "-o", path, self.url]
+                       "-o", path]
             if self.to_mp3:
                 cmdlist.append("--extract-audio")
                 cmdlist.append("--audio-format=mp3")
+            cmdlist.append(self.url)
             subprocess.call(cmdlist)
             
-class CommandLineBuilder: pass
+class CommandLineBuilder(object): pass
 
-class WindowsCommandLineBuilder: pass
+class WindowsCommandLineBuilder(object): pass
 
-class LinuxCommandLineBuilder: pass
+class LinuxCommandLineBuilder(object): pass
 
 class YouTubeDownloader(object):
     def download(self, url_list, dest_dir, num_concurrent_downloads=1,
