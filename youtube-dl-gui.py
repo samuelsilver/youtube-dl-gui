@@ -39,11 +39,6 @@ class YouTubeDownloaderGuiFrame(wx.Frame):
         vbox.Add(fgs, flag=wx.EXPAND | wx.TOP | wx.LEFT | wx.RIGHT, border=10)
         
         hbox = wx.BoxSizer(wx.HORIZONTAL)
-        hbox.Add(wx.StaticText(panel, label="Number of concurrent downloads"),
-                 flag=wx.LEFT, border=10)
-        self.num_dwn_spn = wx.SpinCtrl(panel, size=(50, 20))
-        self.num_dwn_spn.SetRange(1, self.num_dwn_spn.GetMax())
-        hbox.Add(self.num_dwn_spn, flag=wx.LEFT | wx.RIGHT, border=10)
         self.convert_to_mp3_chk = wx.CheckBox(panel, label="Convert to MP3",)
         hbox.Add(self.convert_to_mp3_chk, flag=wx.LEFT | wx.RIGHT, border=10)
         vbox.Add(hbox, flag=wx.EXPAND | wx.TOP | wx.LEFT | wx.RIGHT, border=10)
@@ -153,7 +148,6 @@ class YouTubeDownloaderGuiFrame(wx.Frame):
             urls.append((self.url_list.GetItem(i, 0).GetText(),
                          self.url_list.GetItem(i, 1).GetText()))
         self.youtubedownloader.download(urls, self.dest_txt.GetValue(),
-                                        self.num_dwn_spn.GetValue(),
                                         self.convert_to_mp3_chk.GetValue())
     
 class EditableTextListCtrl(wx.ListCtrl, TextEditMixin):
@@ -220,7 +214,7 @@ class YouTubeDownloaderThread(threading.Thread):
         path = os.path.join(self.directory, self.filename)
         #TODO: refactor this
         if sys.platform.lower().startswith("win"):
-            cmdlist = ["python", "youtube-dl.py", "-o", path]
+            cmdlist = ["python", "youtubedl.py", "-o", path]
             if self.to_mp3:
                 cmdlist.append("--extract-audio")
                 cmdlist.append("--audio-format=mp3")
@@ -234,22 +228,10 @@ class WindowsCommandLineBuilder(object): pass
 class LinuxCommandLineBuilder(object): pass
 
 class YouTubeDownloader(object):
-    def download(self, url_list, dest_dir, num_concurrent_downloads=1,
-                 to_mp3=False):
-        counter = 0
-        threads = []
+    def download(self, url_list, dest_dir, to_mp3=False):
         for filename, url in url_list:
-            if counter == num_concurrent_downloads:
-                # wait for all other threads to finish
-                for thread in threads:
-                    thread.join()
-                counter = 0
-                threads = []
-            else:
-                counter += 1
-                thread = YouTubeDownloaderThread(dest_dir, filename, url, to_mp3)
-                threads.append(thread)
-                thread.start()
+            thread = YouTubeDownloaderThread(dest_dir, filename, url, to_mp3)
+            thread.start()
 
 if __name__ == '__main__':
     app = wx.PySimpleApp()
