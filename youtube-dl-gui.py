@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import wx, sys, threading, os, subprocess
+import wx, sys, threading, os, subprocess, cStringIO, youtubedl
 from wx.lib.mixins.listctrl import TextEditMixin
  
 class YouTubeDownloaderGuiFrame(wx.Frame):
@@ -188,12 +188,26 @@ class VideoTitleRetrieverThread(threading.Thread):
         self.filename_sanitizer = FileNameSanitizer()
     
     def run(self):
-        #TODO: refactor this
-        filename = subprocess.Popen(["python", "youtube-dl.py", "-e", self.url],
-            stdout=subprocess.PIPE).stdout.read().strip() + ".flv"
+        fd = youtubedl.FileDownloader({'forcetitle':True,
+                                       'simulate':True,
+                                       'outtmpl':u'%(id)s.%(ext)s',
+                                       'quiet':True})
+        yie = youtubedl.YoutubeIE(fd)
+        yie.initialize()
+        filename = self._capture(yie.extract, self.url).strip()
         filename = self.filename_sanitizer.sanitize(filename)
         self.url_list.SetStringItem(self.index, 0, filename)
-        
+    
+    def _capture(self, func, *args, **kwargs):
+        tmpstdout = sys.stdout
+        sys.stdout = cStringIO.StringIO()
+        try:
+            func(*args, **kwargs)
+        finally:
+            value = sys.stdout.getvalue()
+            sys.stdout = tmpstdout
+        return value
+
 class YouTubeDownloaderThread(threading.Thread):
     def __init__(self, directory, filename, url, to_mp3):
         threading.Thread.__init__(self)
@@ -206,8 +220,7 @@ class YouTubeDownloaderThread(threading.Thread):
         path = os.path.join(self.directory, self.filename)
         #TODO: refactor this
         if sys.platform.lower().startswith("win"):
-            cmdlist = ["cmd", "/C", "start", "python", "youtube-dl.py",
-                       "-o", path]
+            cmdlist = ["python", "youtube-dl.py", "-o", path]
             if self.to_mp3:
                 cmdlist.append("--extract-audio")
                 cmdlist.append("--audio-format=mp3")
