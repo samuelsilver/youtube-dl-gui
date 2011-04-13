@@ -40,6 +40,7 @@ class YouTubeDownloaderGuiFrame(wx.Frame):
         
         dest_lbl = wx.StaticText(panel, label="Destination")
         self.dest_txt = wx.TextCtrl(panel)
+        self.dest_txt.Disable()
         self.dest_txt.SetValue(os.path.join(os.path.expanduser("~"),
                                             "Downloads"))
         self.dest_btn = wx.Button(panel, label="Open")
@@ -71,12 +72,15 @@ class YouTubeDownloaderGuiFrame(wx.Frame):
                  proportion=1, border=10)
         vbox1 = wx.BoxSizer(wx.VERTICAL)
         self.up_btn = wx.Button(panel, label="Up")
+        self.up_btn.Disable()
         self.up_btn.Bind(wx.EVT_BUTTON, self._move_item_up)
         vbox1.Add(self.up_btn, flag=wx.BOTTOM, border=10)
         self.down_btn = wx.Button(panel, label="Down")
+        self.down_btn.Disable()
         self.down_btn.Bind(wx.EVT_BUTTON, self._move_item_down)
         vbox1.Add(self.down_btn, flag=wx.BOTTOM, border=10)
         self.remove_btn = wx.Button(panel, label="Remove")
+        self.remove_btn.Disable()
         self.remove_btn.Bind(wx.EVT_BUTTON, self._remove_items)
         vbox1.Add(self.remove_btn, flag=wx.BOTTOM, border=10)
         hbox.Add(vbox1, flag=wx.LEFT | wx.RIGHT, border=10)
@@ -108,8 +112,8 @@ class YouTubeDownloaderGuiFrame(wx.Frame):
     def _swap_items(self, index1, index2):
         filename1 = self.url_list.GetItem(index1, 0).GetText()
         url1 = self.url_list.GetItem(index1, 1).GetText()
-        filename2 = self.url_list.GetItem(index2).GetText()
-        url2 = self.url_list.GetItem(index2).GetText()
+        filename2 = self.url_list.GetItem(index2, 0).GetText()
+        url2 = self.url_list.GetItem(index2, 1).GetText()
         
         self.url_list.SetStringItem(index1, 0, filename2)
         self.url_list.SetStringItem(index1, 1, url2)
@@ -127,10 +131,16 @@ class YouTubeDownloaderGuiFrame(wx.Frame):
         # it is important to sort in ascending order
         for index in sorted(indices, reverse=True):
             self.url_list.DeleteItem(index)
+        if self.url_list.GetItemCount() == 0:
+            self.up_btn.Disable()
+            self.down_btn.Disable()
+            self.remove_btn.Disable()
+            self.download_btn.Disable()
     
     def _create_bottom_components(self, panel, vbox):
         hbox = wx.BoxSizer(wx.HORIZONTAL)
         self.download_btn = wx.Button(panel, label="Download")
+        self.download_btn.Disable()
         self.download_btn.Bind(wx.EVT_BUTTON, self._download)
         hbox.Add(self.download_btn, flag=wx.LEFT | wx.RIGHT, border=10)
         vbox.Add(hbox, flag=wx.TOP | wx.ALL, border=10)
@@ -148,9 +158,13 @@ class YouTubeDownloaderGuiFrame(wx.Frame):
         index = self.url_list.InsertStringItem(sys.maxint, "")
         self.url_list.SetStringItem(index, 0, "Default")
         self.url_list.SetStringItem(index, 1, self.url_txt.GetValue())
-        VideoTitleRetrieverThread(self.url_txt.GetValue(), self.url_list,
+        VideoTitleRetrieverThread(self, self.url_txt.GetValue(), 
                                   index).start()
-    
+        self.download_btn.Disable()
+        self.remove_btn.Enable()
+        self.up_btn.Enable()
+        self.down_btn.Enable()
+        
     def _open_file(self, event):
         dlg = wx.DirDialog(self, style=wx.OPEN)
         if dlg.ShowModal() ==  wx.ID_OK:
@@ -190,10 +204,10 @@ class FileNameSanitizer(object):
         return sanitized_filename
     
 class VideoTitleRetrieverThread(threading.Thread):
-    def __init__(self, url, url_list, index):
+    def __init__(self, frame, url, index):
         threading.Thread.__init__(self)
+        self.frame = frame
         self.url = url
-        self.url_list = url_list
         self.index = index
         self.filename_sanitizer = FileNameSanitizer()
     
@@ -204,9 +218,11 @@ class VideoTitleRetrieverThread(threading.Thread):
                                        'quiet':True})
         yie = youtubedl.YoutubeIE(fd)
         yie.initialize()
-        filename = self._capture(yie.extract, self.url).strip()
+        # TODO: this part still has a nasty bug!
+        filename = self._capture(yie.extract, self.url).strip() + ".flv"
         filename = self.filename_sanitizer.sanitize(filename)
-        self.url_list.SetStringItem(self.index, 0, filename)
+        self.frame.url_list.SetStringItem(self.index, 0, filename)
+        self.frame.download_btn.Enable()
     
     def _capture(self, func, *args, **kwargs):
         tmpstdout = sys.stdout
@@ -228,20 +244,50 @@ class YouTubeDownloaderThread(threading.Thread):
         
     def run(self):
         path = os.path.join(self.directory, self.filename)
-        #TODO: refactor this
+        cmdlinebuilder = None
         if sys.platform.lower().startswith("win"):
-            cmdlist = ["python", "youtubedl.py", "-o", path]
-            if self.to_mp3:
-                cmdlist.append("--extract-audio")
-                cmdlist.append("--audio-format=mp3")
-            cmdlist.append(self.url)
-            subprocess.call(cmdlist)
+            cmdlinebuilder = WindowsCmdLineBuilder(path, self.url, self.to_mp3)
+        else: cmdlinebuilder = LinuxCommandLineBuilder(path, self.url,
+                                                       self.to_mp3)
+        subprocess.call(cmdlinebuilder.build())
             
-class CommandLineBuilder(object): pass
+class CommandLineBuilder(object):
+    def __init__(self, path, url, to_mp3):
+        self.cmdlist = ["-o", path]
+        if to_mp3:
+            self.cmdlist.append("--extract-audio")
+            self.cmdlist.append("--audio-format=mp3")
+        self.cmdlist.append(url)
+        
+    def build(self):
+        programlist = self._getprogram()
+        program = ""
+        if len(programlist) == 1: program = programlist[0]
+        else: program = programlist[1]
+        if not os.path.exists(program):
+            programlist = ["python", "youtubedl.py"]
+        newcmdlist = []
+        newcmdlist.extend(self._getshell())
+        newcmdlist.extend(programlist)
+        newcmdlist.extend(self.cmdlist)
+        return newcmdlist
+        
+    def _getshell(self): pass
+    def _getprogram(self): pass
+    
+class WindowsCmdLineBuilder(CommandLineBuilder):
+    def _getprogram(self):
+        return ["youtubedl.exe"]
+    
+    def _getshell(self):
+        return ["cmd", "/C", "start"]
 
-class WindowsCommandLineBuilder(object): pass
-
-class LinuxCommandLineBuilder(object): pass
+class LinuxCmdLineBuilder(CommandLineBuilder):
+    def _getprogram(self):
+        return ["python", "youtubedl.py"]
+        
+    def _getshell(self):
+        return ["xterm", "-e"]
 
 class YouTubeDownloader(object):
     def download(self, url_list, dest_dir, to_mp3=False):
