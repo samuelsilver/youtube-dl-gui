@@ -202,7 +202,9 @@ class FileNameSanitizer(object):
         for char in self.illegal_chars:
             sanitized_filename = sanitized_filename.replace(char, "")
         return sanitized_filename
-    
+
+mutex = threading.Lock()
+
 class VideoTitleRetrieverThread(threading.Thread):
     def __init__(self, frame, url, index):
         threading.Thread.__init__(self)
@@ -218,13 +220,13 @@ class VideoTitleRetrieverThread(threading.Thread):
                                        'quiet':True})
         yie = youtubedl.YoutubeIE(fd)
         yie.initialize()
-        # TODO: this part still has a nasty bug!
         filename = self._capture(yie.extract, self.url).strip() + ".flv"
         filename = self.filename_sanitizer.sanitize(filename)
         self.frame.url_list.SetStringItem(self.index, 0, filename)
         self.frame.download_btn.Enable()
     
     def _capture(self, func, *args, **kwargs):
+        mutex.acquire()
         tmpstdout = sys.stdout
         sys.stdout = cStringIO.StringIO()
         try:
@@ -232,6 +234,7 @@ class VideoTitleRetrieverThread(threading.Thread):
         finally:
             value = sys.stdout.getvalue()
             sys.stdout = tmpstdout
+        mutex.release()
         return value
 
 class YouTubeDownloaderThread(threading.Thread):
