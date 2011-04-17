@@ -250,8 +250,8 @@ class YouTubeDownloaderThread(threading.Thread):
         cmdlinebuilder = None
         if sys.platform.lower().startswith("win"):
             cmdlinebuilder = WindowsCmdLineBuilder(path, self.url, self.to_mp3)
-        else: cmdlinebuilder = LinuxCommandLineBuilder(path, self.url,
-                                                       self.to_mp3)
+        else: cmdlinebuilder = LinuxCmdLineBuilder(path, self.url,
+                                                   self.to_mp3)
         subprocess.call(cmdlinebuilder.build())
             
 class CommandLineBuilder(object):
