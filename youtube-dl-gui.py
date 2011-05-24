@@ -187,10 +187,18 @@ class EditableTextListCtrl(wx.ListCtrl, TextEditMixin):
     def __init__(self, parent, style=0):
         wx.ListCtrl.__init__(self, parent, style=style)
         TextEditMixin.__init__(self)
+        # the edit mode should happen only when the user double clicks
+        # on the row, but the TextEditMixin implementation
+        # binds both the wx.EVT_LEFT_DOWN and wx.EVT_LEFT_DCLICK
+        # for the self.OnLeftDown handler, thus the wx.EVT_LEFT_DOWN
+        # needs to be unbound
+        self.Unbind(wx.EVT_LEFT_DOWN)
+        self.Bind(wx.EVT_LEFT_DCLICK, self.OnLeftDown)
+        
     def OpenEditor(self, col, row):
         if col == 1: return
         else: TextEditMixin.OpenEditor(self, col, row)
-        
+ 
 class FileNameSanitizer(object):
     def __init__(self):
         self.illegal_chars = ["\\", "/", ":", "*", "?", "\"", "<", ">", "|"]
