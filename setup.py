@@ -2,6 +2,11 @@ from distutils.core import setup
 import py2exe
 import shutil, os
 
+if os.path.exists("youtube-dl-gui-0.1-win32"):
+    shutil.rmtree("youtube-dl-gui-0.1-win32")
+if os.path.exists("youtube-dl-gui-0.1-linux"):
+    shutil.rmtree("youtube-dl-gui-0.1-linux")
+
 setup(console=["youtubedl.py"])
 setup(name='youtube-dl-gui',
       version='0.1',
