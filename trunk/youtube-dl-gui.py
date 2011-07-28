@@ -21,9 +21,10 @@ from wx.lib.mixins.listctrl import TextEditMixin
  
 class YouTubeDownloaderGuiFrame(wx.Frame):
     def __init__(self):
-        wx.Frame.__init__(self, None, -1, "YouTubeDownloaderGUI", size=(800, 500))
-        icon_file = "youtube-icon.png"
-        icon = wx.Icon(icon_file, wx.BITMAP_TYPE_PNG)
+        wx.Frame.__init__(self, None, -1, "YouTubeDownloaderGUI 0.2",
+                          size=(800, 500))
+        icon_file = "youtube-icon.ico"
+        icon = wx.Icon(icon_file, wx.BITMAP_TYPE_ICO)
         self.SetIcon(icon)
         panel = wx.Panel(self)
         vbox = wx.BoxSizer(wx.VERTICAL)
@@ -37,7 +38,8 @@ class YouTubeDownloaderGuiFrame(wx.Frame):
         fgs = wx.FlexGridSizer(2, 3, 10, 10)
         
         url_lbl = wx.StaticText(panel, label="URL")
-        self.url_txt = wx.TextCtrl(panel)
+        self.url_txt = wx.TextCtrl(panel, style=wx.TE_PROCESS_ENTER)
+        self.url_txt.Bind(wx.EVT_KEY_DOWN, self._add_url_when_enter_pressed)
         self.add_btn = wx.Button(panel, label="Add")
         self.add_btn.Bind(wx.EVT_BUTTON, self._add_url)
         
@@ -71,6 +73,7 @@ class YouTubeDownloaderGuiFrame(wx.Frame):
         self.url_list.InsertColumn(1, 'URL')
         self.url_list.SetColumnWidth(0, 400)
         self.url_list.SetColumnWidth(1, 800)
+        self.url_list.Bind(wx.EVT_KEY_DOWN, self._remove_items_when_del_pressed)
         hbox.Add(self.url_list, flag=wx.EXPAND | wx.LEFT | wx.RIGHT,
                  proportion=1, border=10)
         vbox1 = wx.BoxSizer(wx.VERTICAL)
@@ -123,6 +126,11 @@ class YouTubeDownloaderGuiFrame(wx.Frame):
         self.url_list.SetStringItem(index2, 0, filename1)
         self.url_list.SetStringItem(index2, 1, url1)
         
+    def _remove_items_when_del_pressed(self, event):
+        if (event.GetKeyCode() == wx.WXK_DELETE):
+            self._remove_items(event)
+        else: event.Skip()
+            
     def _remove_items(self, event):
         indices = []
         index = self.url_list.GetFirstSelected()
@@ -146,8 +154,15 @@ class YouTubeDownloaderGuiFrame(wx.Frame):
         self.download_btn.Disable()
         self.download_btn.Bind(wx.EVT_BUTTON, self._download)
         hbox.Add(self.download_btn, flag=wx.LEFT | wx.RIGHT, border=10)
+        url_lbl = wx.StaticText(panel, label="Created by Fredy Wijaya")
+        hbox.Add(url_lbl, flag=wx.LEFT | wx.CENTER | wx.RIGHT, border=10)
         vbox.Add(hbox, flag=wx.TOP | wx.ALL, border=10)
 
+    def _add_url_when_enter_pressed(self, event):
+        if (event.GetKeyCode() == wx.WXK_RETURN):
+            self._add_url(event)
+        else: event.Skip()
+        
     def _add_url(self, event):
         if self.url_txt.GetValue() == "":
             wx.MessageDialog(self, message="URL can't be empty", caption="Error",
