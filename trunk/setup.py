@@ -16,6 +16,7 @@ setup(name='youtube-dl-gui',
 shutil.copy("ffmpeg.exe", "dist")
 shutil.copy("ffprobe.exe", "dist")
 shutil.copy("youtube-icon.png", "dist")
+shutil.copy("youtube-icon.ico", "dist")
 shutil.move("dist", "youtube-dl-gui-0.2-win32")
 
 if not os.path.exists("youtube-dl-gui-0.2-linux"):
@@ -23,3 +24,4 @@ if not os.path.exists("youtube-dl-gui-0.2-linux"):
 shutil.copy("youtube-dl-gui.py", "youtube-dl-gui-0.2-linux")
 shutil.copy("youtubedl.py", "youtube-dl-gui-0.2-linux")
 shutil.copy("youtube-icon.png", "youtube-dl-gui-0.2-linux")
+shutil.copy("youtube-icon.ico", "youtube-dl-gui-0.2-linux")
