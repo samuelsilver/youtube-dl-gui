@@ -21,7 +21,7 @@ from wx.lib.mixins.listctrl import TextEditMixin
  
 class YouTubeDownloaderGuiFrame(wx.Frame):
     def __init__(self):
-        wx.Frame.__init__(self, None, -1, "YouTubeDownloaderGUI 0.2",
+        wx.Frame.__init__(self, None, -1, "YouTubeDownloaderGUI 0.2.1",
                           size=(800, 500))
         icon_file = "youtube-icon.ico"
         icon = wx.Icon(icon_file, wx.BITMAP_TYPE_ICO)
