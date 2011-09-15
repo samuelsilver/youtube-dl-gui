@@ -4,7 +4,7 @@ import shutil, os, sys
 from contextlib import closing
 from zipfile import ZipFile, ZIP_DEFLATED
 
-ver = "0.2.1"
+ver = "0.2.2"
 youtube_dl_gui = "youtube-dl-gui"
 youtube_dl_gui_linux = youtube_dl_gui + "-" + ver + "-linux"
 youtube_dl_gui_win32 = youtube_dl_gui + "-" + ver + "-win32"

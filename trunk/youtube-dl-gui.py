@@ -247,6 +247,7 @@ class VideoTitleRetrieverThread(threading.Thread):
         yie = youtubedl.YoutubeIE(fd)
         yie.initialize()
         try:
+            mutex.acquire()
             filename = self._capture(yie.extract, self.url).strip() + ".flv"
             filename = self.filename_sanitizer.sanitize(filename)
             self.frame.url_list.SetStringItem(self.index, 0, filename)
@@ -254,11 +255,12 @@ class VideoTitleRetrieverThread(threading.Thread):
             msg = "Unable to download the video. Is the URL correct?"
             dialog = wx.MessageDialog(None, msg, "Error", wx.OK | wx.ICON_ERROR)
             dialog.ShowModal()
+            self.frame.url_list.DeleteItem(self.index)
         finally:    
             self.frame.download_btn.Enable()
+            mutex.release()
     
     def _capture(self, func, *args, **kwargs):
-        mutex.acquire()
         tmpstdout = sys.stdout
         sys.stdout = cStringIO.StringIO()
         try:
@@ -266,7 +268,6 @@ class VideoTitleRetrieverThread(threading.Thread):
         finally:
             value = sys.stdout.getvalue()
             sys.stdout = tmpstdout
-        mutex.release()
         return value
 
 class YouTubeDownloaderThread(threading.Thread):
