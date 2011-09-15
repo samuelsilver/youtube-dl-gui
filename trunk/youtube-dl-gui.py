@@ -21,7 +21,7 @@ from wx.lib.mixins.listctrl import TextEditMixin
  
 class YouTubeDownloaderGuiFrame(wx.Frame):
     def __init__(self):
-        wx.Frame.__init__(self, None, -1, "YouTubeDownloaderGUI 0.2.1",
+        wx.Frame.__init__(self, None, -1, "YouTubeDownloaderGUI 0.2.2",
                           size=(800, 500))
         icon_file = "youtube-icon.ico"
         icon = wx.Icon(icon_file, wx.BITMAP_TYPE_ICO)
@@ -246,10 +246,16 @@ class VideoTitleRetrieverThread(threading.Thread):
                                        'quiet':True})
         yie = youtubedl.YoutubeIE(fd)
         yie.initialize()
-        filename = self._capture(yie.extract, self.url).strip() + ".flv"
-        filename = self.filename_sanitizer.sanitize(filename)
-        self.frame.url_list.SetStringItem(self.index, 0, filename)
-        self.frame.download_btn.Enable()
+        try:
+            filename = self._capture(yie.extract, self.url).strip() + ".flv"
+            filename = self.filename_sanitizer.sanitize(filename)
+            self.frame.url_list.SetStringItem(self.index, 0, filename)
+        except youtubedl.DownloadError as e:
+            msg = "Unable to download the video. Is the URL correct?"
+            dialog = wx.MessageDialog(None, msg, "Error", wx.OK | wx.ICON_ERROR)
+            dialog.ShowModal()
+        finally:    
+            self.frame.download_btn.Enable()
     
     def _capture(self, func, *args, **kwargs):
         mutex.acquire()
