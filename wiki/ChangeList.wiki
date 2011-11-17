@@ -1,7 +1,8 @@
-#summary Change list
+#summary Change List
 #labels Featured
 
 = Version 0.2.3 =
 
   * Update the youtube-dl-py to version 2011.10.19
   * Add a new feature to check for an update
+  * Fix the multi-threading issues on Linux
