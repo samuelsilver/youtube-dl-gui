@@ -18,6 +18,7 @@
 
 import wx, sys, threading, os, subprocess, cStringIO, youtubedl, urllib2, re
 from wx.lib.mixins.listctrl import TextEditMixin
+from wx.lib.pubsub import Publisher
 
 __author__  = "Fredy Wijaya"
 __version__ = "0.2.3"
@@ -39,6 +40,9 @@ class YouTubeDownloaderGuiFrame(wx.Frame):
         self._create_bottom_components(panel, vbox)
         panel.SetSizer(vbox)
         self.youtubedownloader = YouTubeDownloader()
+        # register all the subscriptions
+        Publisher().subscribe(self._get_update, "update")
+        Publisher().subscribe(self._get_video_title, "video_title")
        
     def _create_top_components(self, panel, vbox):
         fgs = wx.FlexGridSizer(2, 3, 10, 10)
@@ -187,8 +191,8 @@ class YouTubeDownloaderGuiFrame(wx.Frame):
         index = self.url_list.InsertStringItem(sys.maxint, "")
         self.url_list.SetStringItem(index, 0, "Default")
         self.url_list.SetStringItem(index, 1, self.url_txt.GetValue())
-        VideoTitleRetrieverThread(self, self.url_txt.GetValue(), 
-                                  index).start()
+        VideoTitleRetrieverThread(self.url_txt.GetValue(), index).start()
+        
         self.download_btn.Disable()
         self.remove_btn.Enable()
         self.up_btn.Enable()
@@ -210,9 +214,31 @@ class YouTubeDownloaderGuiFrame(wx.Frame):
                                         self.convert_to_mp3_chk.GetValue())
     
     def _check_for_update(self, event):
-        YouTubeDownloaderGuiUpdaterThread(self, __version__).start()
+        YouTubeDownloaderGuiUpdaterThread(__version__).start()
         self.check_update_btn.Disable()
     
+    def _get_update(self, msg):
+        model = msg.data
+        if model.error:
+            wx.MessageDialog(frame, message=model.message, 
+                             caption="Check for Update", 
+                             style=wx.ICON_ERROR | wx.CENTRE).ShowModal()
+        else:
+            wx.MessageDialog(frame, message=model.message, 
+                             caption="Check for Update", 
+                             style=wx.ICON_INFORMATION | wx.CENTRE).ShowModal()
+        self.check_update_btn.Enable()
+    
+    def _get_video_title(self, msg):
+        model = msg.data
+        if model.error:
+            wx.MessageDialog(None, model.message, "Error", 
+                             wx.OK | wx.ICON_ERROR).ShowModal()
+            self.url_list.DeleteItem(model.index)
+        else:
+            self.url_list.SetStringItem(model.index, 0, model.filename)
+        self.download_btn.Enable()
+        
 class EditableTextListCtrl(wx.ListCtrl, TextEditMixin):
     def __init__(self, parent, style=0):
         wx.ListCtrl.__init__(self, parent, style=style)
@@ -246,10 +272,16 @@ class FileNameSanitizer(object):
 
 mutex = threading.Lock()
 
+class VideoTitleRetrieverModel:
+    def __init__(self, index, filename, error=False, message=""):
+        self.error = error
+        self.message = message
+        self.index = index
+        self.filename = filename
+    
 class VideoTitleRetrieverThread(threading.Thread):
-    def __init__(self, frame, url, index):
+    def __init__(self, url, index):
         threading.Thread.__init__(self)
-        self.frame = frame
         self.url = url
         self.index = index
         self.filename_sanitizer = FileNameSanitizer()
@@ -265,14 +297,13 @@ class VideoTitleRetrieverThread(threading.Thread):
             mutex.acquire()
             filename = self._capture(yie.extract, self.url).strip() + ".flv"
             filename = self.filename_sanitizer.sanitize(filename)
-            self.frame.url_list.SetStringItem(self.index, 0, filename)
+            model = VideoTitleRetrieverModel(self.index, filename)
+            wx.CallAfter(Publisher().sendMessage, "video_title", model)
         except youtubedl.DownloadError as e:
             msg = "Unable to download the video. Is the URL correct?"
-            dialog = wx.MessageDialog(None, msg, "Error", wx.OK | wx.ICON_ERROR)
-            dialog.ShowModal()
-            self.frame.url_list.DeleteItem(self.index)
+            model = VideoTitleRetrieverModel(self.index, "", True, msg)
+            wx.CallAfter(Publisher().sendMessage, "video_title", model)
         finally:    
-            self.frame.download_btn.Enable()
             mutex.release()
     
     def _capture(self, func, *args, **kwargs):
@@ -369,10 +400,14 @@ class YouTubeDownloaderGuiUpdater:
                 return False
         return True
 
+class YouTubeDownloaderGuiUpdaterModel:
+    def __init__(self, error, message):
+        self.error = error
+        self.message = message
+        
 class YouTubeDownloaderGuiUpdaterThread(threading.Thread):
-    def __init__(self, frame, current_version):
+    def __init__(self, current_version):
         threading.Thread.__init__(self)
-        self.frame = frame
         self.current_version = current_version
         self.updater = YouTubeDownloaderGuiUpdater(current_version)
         
@@ -386,15 +421,12 @@ class YouTubeDownloaderGuiUpdaterThread(threading.Thread):
                 msg = ("A new version (" + latest_version + 
                        ") is available.\n\nYou can download it from " + 
                        DOWNLOAD_URL)
-            
-            wx.MessageDialog(frame, message=msg, caption="Check for Update", 
-                             style=wx.ICON_INFORMATION | wx.CENTRE).ShowModal()
+            model = YouTubeDownloaderGuiUpdaterModel(False, msg)
+            wx.CallAfter(Publisher().sendMessage, "update", model)
         except urllib2.HTTPError:
-            wx.MessageDialog(frame, message="Unable to check for update", 
-                             caption="Check for Update", 
-                             style=wx.ICON_ERROR | wx.CENTRE).ShowModal()
-        finally:
-            self.frame.check_update_btn.Enable()
+            msg = "Unable to check for update!"
+            model = YouTubeDownloaderGuiUpdaterModel(False, msg)
+            wx.CallAfter(Publisher().sendMessage, "update", model)
     
 if __name__ == '__main__':
     app = wx.PySimpleApp()
