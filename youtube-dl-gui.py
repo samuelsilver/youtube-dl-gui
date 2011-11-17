@@ -16,12 +16,18 @@
 # You should have received a copy of the Lesser GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>
 
-import wx, sys, threading, os, subprocess, cStringIO, youtubedl
+import wx, sys, threading, os, subprocess, cStringIO, youtubedl, urllib2, re
 from wx.lib.mixins.listctrl import TextEditMixin
- 
+
+__author__  = "Fredy Wijaya"
+__version__ = "0.2.3"
+
+UPDATE_URL = "http://code.google.com/p/youtube-dl-gui/source/browse/trunk/VERSION.txt"
+DOWNLOAD_URL = "http://code.google.com/p/youtube-dl-gui/downloads/list"
+
 class YouTubeDownloaderGuiFrame(wx.Frame):
     def __init__(self):
-        wx.Frame.__init__(self, None, -1, "YouTubeDownloaderGUI 0.2.2",
+        wx.Frame.__init__(self, None, -1, "YouTubeDownloaderGUI " + __version__,
                           size=(800, 500))
         icon_file = "youtube-icon.ico"
         icon = wx.Icon(icon_file, wx.BITMAP_TYPE_ICO)
@@ -153,7 +159,12 @@ class YouTubeDownloaderGuiFrame(wx.Frame):
         self.download_btn = wx.Button(panel, label="Download")
         self.download_btn.Disable()
         self.download_btn.Bind(wx.EVT_BUTTON, self._download)
-        hbox.Add(self.download_btn, flag=wx.LEFT | wx.RIGHT, border=10)
+        hbox.Add(self.download_btn, flag=wx.LEFT | wx.RIGHT)
+        
+        self.check_update_btn = wx.Button(panel, label="Check for Update")
+        self.check_update_btn.Bind(wx.EVT_BUTTON, self._check_for_update)
+        hbox.Add(self.check_update_btn, flag=wx.LEFT | wx.RIGHT, border=10)
+        
         url_lbl = wx.StaticText(panel, label="Created by Fredy Wijaya")
         hbox.Add(url_lbl, flag=wx.LEFT | wx.CENTER | wx.RIGHT, border=10)
         vbox.Add(hbox, flag=wx.TOP | wx.ALL, border=10)
@@ -197,6 +208,10 @@ class YouTubeDownloaderGuiFrame(wx.Frame):
                          self.url_list.GetItem(i, 1).GetText()))
         self.youtubedownloader.download(urls, self.dest_txt.GetValue(),
                                         self.convert_to_mp3_chk.GetValue())
+    
+    def _check_for_update(self, event):
+        YouTubeDownloaderGuiUpdaterThread(self, __version__).start()
+        self.check_update_btn.Disable()
     
 class EditableTextListCtrl(wx.ListCtrl, TextEditMixin):
     def __init__(self, parent, style=0):
@@ -331,6 +346,48 @@ class YouTubeDownloader(object):
             thread = YouTubeDownloaderThread(dest_dir, filename, url, to_mp3)
             thread.start()
 
+class YouTubeDownloaderGuiUpdater:
+    def __init__(self, current_version):
+        self.current_version = current_version
+        
+    def check_for_update(self):
+        f = urllib2.urlopen(UPDATE_URL)
+        reply = f.read()
+        m = re.search("<td class=\"source\">(.*)<br></td>", reply)
+        if not m: return
+        latest_version = m.group(1)
+        if self._is_latest_version(self.current_version, latest_version):
+            return self.current_version
+        else: return latest_version
+    
+    def _is_latest_version(self, current_ver, latest_ver):
+        current_vers = current_ver.split(".")
+        latest_vers = latest_ver.split(".")
+        for i in range(0, len(latest_vers)):
+            if i >= len(current_vers): return False
+            if int(latest_vers[i]) != int(current_vers[i]): 
+                return False
+        return True
+
+class YouTubeDownloaderGuiUpdaterThread(threading.Thread):
+    def __init__(self, frame, current_version):
+        threading.Thread.__init__(self)
+        self.frame = frame
+        self.current_version = current_version
+        self.updater = YouTubeDownloaderGuiUpdater(current_version)
+        
+    def run(self):
+        latest_version = self.updater.check_for_update()
+        if latest_version == self.current_version:
+            msg = "You already have the latest version (" + latest_version + ")"
+        else:
+            msg = ("A new version (" + latest_version + ") is available.\n\n" +
+                   "You can download it from " + DOWNLOAD_URL)
+            
+        wx.MessageDialog(frame, message=msg, caption="Check for Update", 
+                             style=wx.ICON_INFORMATION | wx.CENTRE).ShowModal()
+        self.frame.check_update_btn.Enable()
+    
 if __name__ == '__main__':
     app = wx.PySimpleApp()
     frame = YouTubeDownloaderGuiFrame()
