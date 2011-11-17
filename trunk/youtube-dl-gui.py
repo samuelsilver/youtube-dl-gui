@@ -377,16 +377,24 @@ class YouTubeDownloaderGuiUpdaterThread(threading.Thread):
         self.updater = YouTubeDownloaderGuiUpdater(current_version)
         
     def run(self):
-        latest_version = self.updater.check_for_update()
-        if latest_version == self.current_version:
-            msg = "You already have the latest version (" + latest_version + ")"
-        else:
-            msg = ("A new version (" + latest_version + ") is available.\n\n" +
-                   "You can download it from " + DOWNLOAD_URL)
+        try:
+            latest_version = self.updater.check_for_update()
+            if latest_version == self.current_version:
+                msg = ("You already have the latest version (" + 
+                       latest_version + ")")
+            else:
+                msg = ("A new version (" + latest_version + 
+                       ") is available.\n\nYou can download it from " + 
+                       DOWNLOAD_URL)
             
-        wx.MessageDialog(frame, message=msg, caption="Check for Update", 
+            wx.MessageDialog(frame, message=msg, caption="Check for Update", 
                              style=wx.ICON_INFORMATION | wx.CENTRE).ShowModal()
-        self.frame.check_update_btn.Enable()
+        except urllib2.HTTPError:
+            wx.MessageDialog(frame, message="Unable to check for update", 
+                             caption="Check for Update", 
+                             style=wx.ICON_ERROR | wx.CENTRE).ShowModal()
+        finally:
+            self.frame.check_update_btn.Enable()
     
 if __name__ == '__main__':
     app = wx.PySimpleApp()
