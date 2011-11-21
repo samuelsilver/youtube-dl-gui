@@ -18,6 +18,7 @@
 
 import wx, sys, threading, os, subprocess, cStringIO, youtubedl, urllib2, re
 from wx.lib.mixins.listctrl import TextEditMixin
+from wx.lib.pubsub import setupv1
 from wx.lib.pubsub import Publisher
 
 __author__  = "Fredy Wijaya"

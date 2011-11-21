@@ -51,7 +51,7 @@ setup(name=youtube_dl_gui,
       version=ver,
       author='Fredy Wijaya',
       windows=[{"script":"youtube-dl-gui.py"}],
-      options={"py2exe":{"includes":["sip"]}})
+      options={"py2exe":{"includes":["sip"], "packages":['wx.lib.pubsub']}})
 
 make_win32_package(youtube_dl_gui_win32)
 make_linux_package(youtube_dl_gui_linux)
