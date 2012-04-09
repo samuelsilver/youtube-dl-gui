@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-# Copyright 2011, Fredy Wijaya
+# Copyright 2011-2012, Fredy Wijaya
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the Lesser GNU General Public License as published by
@@ -22,7 +22,7 @@ from wx.lib.pubsub import setupv1
 from wx.lib.pubsub import Publisher
 
 __author__  = "Fredy Wijaya"
-__version__ = "0.2.3"
+__version__ = "0.2.4"
 
 UPDATE_URL = "http://code.google.com/p/youtube-dl-gui/source/browse/trunk/VERSION.txt"
 DOWNLOAD_URL = "http://code.google.com/p/youtube-dl-gui/downloads/list"
