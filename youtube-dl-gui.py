@@ -17,20 +17,24 @@
 # along with this program. If not, see <http://www.gnu.org/licenses/>
 
 import wx, sys, threading, os, subprocess, cStringIO, youtubedl, urllib2, re
+from ConfigParser import ConfigParser
 from wx.lib.mixins.listctrl import TextEditMixin
 from wx.lib.pubsub import setupv1
 from wx.lib.pubsub import Publisher
 
-__author__  = "Fredy Wijaya"
-__version__ = "0.2.4"
+__author__  = u"Fredy Wijaya"
+__version__ = u"0.2.5"
 
-UPDATE_URL = "http://code.google.com/p/youtube-dl-gui/source/browse/trunk/VERSION.txt"
-DOWNLOAD_URL = "http://code.google.com/p/youtube-dl-gui/downloads/list"
+UPDATE_URL = u"http://code.google.com/p/youtube-dl-gui/source/browse/trunk/VERSION.txt"
+DOWNLOAD_URL = u"http://code.google.com/p/youtube-dl-gui/downloads/list"
 
-class YouTubeDownloaderGuiFrame(wx.Frame):
+mutex = threading.Lock()
+
+class YouTubeDownloaderGUIFrame(wx.Frame):
     def __init__(self):
-        wx.Frame.__init__(self, None, -1, "YouTubeDownloaderGUI " + __version__,
+        wx.Frame.__init__(self, None, -1, u"YouTubeDownloaderGUI " + __version__,
                           size=(800, 500))
+        self.settings = YouTubeDownloaderGUISettings()
         icon_file = "youtube-icon.ico"
         icon = wx.Icon(icon_file, wx.BITMAP_TYPE_ICO)
         self.SetIcon(icon)
@@ -48,18 +52,22 @@ class YouTubeDownloaderGuiFrame(wx.Frame):
     def _create_top_components(self, panel, vbox):
         fgs = wx.FlexGridSizer(2, 3, 10, 10)
         
-        url_lbl = wx.StaticText(panel, label="URL")
+        url_lbl = wx.StaticText(panel, label=u"URL")
         self.url_txt = wx.TextCtrl(panel, style=wx.TE_PROCESS_ENTER)
         self.url_txt.Bind(wx.EVT_KEY_DOWN, self._add_url_when_enter_pressed)
-        self.add_btn = wx.Button(panel, label="Add")
+        self.add_btn = wx.Button(panel, label=u"Add")
         self.add_btn.Bind(wx.EVT_BUTTON, self._add_url)
         
-        dest_lbl = wx.StaticText(panel, label="Destination")
+        dest_lbl = wx.StaticText(panel, label=u"Destination")
         self.dest_txt = wx.TextCtrl(panel)
         self.dest_txt.Disable()
-        self.dest_txt.SetValue(os.path.join(os.path.expanduser("~"),
-                                            "Downloads"))
-        self.dest_btn = wx.Button(panel, label="Open")
+        download_path = self.settings.get(u"Download", u"path")
+        if not download_path:
+             download_path = os.path.join(os.path.expanduser("~"),
+                                          u"Downloads")
+             self.settings.set(u"Download", u"path", download_path)
+        self.dest_txt.SetValue(download_path)
+        self.dest_btn = wx.Button(panel, label=u"Open")
         self.dest_btn.Bind(wx.EVT_BUTTON, self._open_file)
         
         fgs.AddMany([(url_lbl, 0, wx.LEFT | wx.RIGHT, 10),
@@ -72,7 +80,7 @@ class YouTubeDownloaderGuiFrame(wx.Frame):
         vbox.Add(fgs, flag=wx.EXPAND | wx.TOP | wx.LEFT | wx.RIGHT, border=10)
         
         hbox = wx.BoxSizer(wx.HORIZONTAL)
-        self.convert_to_mp3_chk = wx.CheckBox(panel, label="Convert to MP3",)
+        self.convert_to_mp3_chk = wx.CheckBox(panel, label=u"Convert to MP3",)
         hbox.Add(self.convert_to_mp3_chk, flag=wx.LEFT | wx.RIGHT, border=10)
         vbox.Add(hbox, flag=wx.EXPAND | wx.TOP | wx.LEFT | wx.RIGHT, border=10)
    
@@ -80,23 +88,23 @@ class YouTubeDownloaderGuiFrame(wx.Frame):
         hbox = wx.BoxSizer(wx.HORIZONTAL)
         self.url_list = EditableTextListCtrl(panel, style=wx.LC_REPORT)
         self.url_list.Bind(wx.EVT_LIST_END_LABEL_EDIT, self._edit_item)
-        self.url_list.InsertColumn(0, 'File Name')
-        self.url_list.InsertColumn(1, 'URL')
+        self.url_list.InsertColumn(0, u"File Name")
+        self.url_list.InsertColumn(1, u"URL")
         self.url_list.SetColumnWidth(0, 400)
         self.url_list.SetColumnWidth(1, 800)
         self.url_list.Bind(wx.EVT_KEY_DOWN, self._remove_items_when_del_pressed)
         hbox.Add(self.url_list, flag=wx.EXPAND | wx.LEFT | wx.RIGHT,
                  proportion=1, border=10)
         vbox1 = wx.BoxSizer(wx.VERTICAL)
-        self.up_btn = wx.Button(panel, label="Up")
+        self.up_btn = wx.Button(panel, label=u"Up")
         self.up_btn.Disable()
         self.up_btn.Bind(wx.EVT_BUTTON, self._move_item_up)
         vbox1.Add(self.up_btn, flag=wx.BOTTOM, border=10)
-        self.down_btn = wx.Button(panel, label="Down")
+        self.down_btn = wx.Button(panel, label=u"Down")
         self.down_btn.Disable()
         self.down_btn.Bind(wx.EVT_BUTTON, self._move_item_down)
         vbox1.Add(self.down_btn, flag=wx.BOTTOM, border=10)
-        self.remove_btn = wx.Button(panel, label="Remove")
+        self.remove_btn = wx.Button(panel, label=u"Remove")
         self.remove_btn.Disable()
         self.remove_btn.Bind(wx.EVT_BUTTON, self._remove_items)
         vbox1.Add(self.remove_btn, flag=wx.BOTTOM, border=10)
@@ -106,7 +114,7 @@ class YouTubeDownloaderGuiFrame(wx.Frame):
                  proportion=1, border=10)
     
     def _edit_item(self, event):
-        if FileNameSanitizer().contains_illegal_chars(event.GetLabel()):
+        if FileNameSanitizer.contains_illegal_chars(event.GetLabel()):
             event.Veto()
         else: event.Allow()
     
@@ -161,16 +169,16 @@ class YouTubeDownloaderGuiFrame(wx.Frame):
     
     def _create_bottom_components(self, panel, vbox):
         hbox = wx.BoxSizer(wx.HORIZONTAL)
-        self.download_btn = wx.Button(panel, label="Download")
+        self.download_btn = wx.Button(panel, label=u"Download")
         self.download_btn.Disable()
         self.download_btn.Bind(wx.EVT_BUTTON, self._download)
         hbox.Add(self.download_btn, flag=wx.LEFT | wx.RIGHT)
         
-        self.check_update_btn = wx.Button(panel, label="Check for Update")
+        self.check_update_btn = wx.Button(panel, label=u"Check for Update")
         self.check_update_btn.Bind(wx.EVT_BUTTON, self._check_for_update)
         hbox.Add(self.check_update_btn, flag=wx.LEFT | wx.RIGHT, border=10)
         
-        url_lbl = wx.StaticText(panel, label="Created by Fredy Wijaya")
+        url_lbl = wx.StaticText(panel, label=u"Created by %s" % __author__)
         hbox.Add(url_lbl, flag=wx.LEFT | wx.CENTER | wx.RIGHT, border=10)
         vbox.Add(hbox, flag=wx.TOP | wx.ALL, border=10)
 
@@ -180,21 +188,22 @@ class YouTubeDownloaderGuiFrame(wx.Frame):
         else: event.Skip()
         
     def _add_url(self, event):
-        if self.url_txt.GetValue() == "":
-            wx.MessageDialog(self, message="URL can't be empty", caption="Error",
+        if self.url_txt.GetValue() == u"":
+            wx.MessageDialog(self, message=u"URL can't be empty", caption=u"Error",
                              style=wx.ICON_ERROR | wx.CENTRE).ShowModal()
             return
-        if (not self.url_txt.GetValue().lower().startswith("http://") and
-            not self.url_txt.GetValue().lower().startswith("https://")):
-            wx.MessageDialog(self, message="Invalid URL", caption="Error",
-                             style=wx.ICON_ERROR | wx.CENTRE).ShowModal()
-            return
-        index = self.url_list.InsertStringItem(sys.maxint, "")
-        self.url_list.SetStringItem(index, 0, "Default")
-        self.url_list.SetStringItem(index, 1, self.url_txt.GetValue())
-        VideoTitleRetrieverThread(self.url_txt.GetValue(), index).start()
         
-        self.download_btn.Disable()
+        index = self.url_list.InsertStringItem(sys.maxint, u"")
+        self.url_list.SetStringItem(index, 0, u"Default")
+        self.url_list.SetStringItem(index, 1, self.url_txt.GetValue())
+        # check if the URL is playlist URL
+        if YouTubeURLChecker.is_playlist(self.url_txt.GetValue()):
+            self.url_list.SetStringItem(index, 0, u"*** PLAYLIST ***")
+            self.url_list.SetStringItem(index, 1, self.url_txt.GetValue())
+            self.download_btn.Enable()
+        else:
+            VideoTitleRetrieverThread(self.url_txt.GetValue(), index).start()
+
         self.remove_btn.Enable()
         self.up_btn.Enable()
         self.down_btn.Enable()
@@ -202,6 +211,7 @@ class YouTubeDownloaderGuiFrame(wx.Frame):
     def _open_file(self, event):
         dlg = wx.DirDialog(self, style=wx.OPEN)
         if dlg.ShowModal() ==  wx.ID_OK:
+            self.settings.set(u"Download", u"path", dlg.GetPath())
             self.dest_txt.SetValue(dlg.GetPath())
     
     def _download(self, event):
@@ -209,37 +219,62 @@ class YouTubeDownloaderGuiFrame(wx.Frame):
             os.makedirs(self.dest_txt.GetValue())
         urls = []
         for i in range(0, self.url_list.GetItemCount()):
-            urls.append((self.url_list.GetItem(i, 0).GetText(),
-                         self.url_list.GetItem(i, 1).GetText()))
+            name = self.url_list.GetItem(i, 0).GetText()
+            url = self.url_list.GetItem(i, 1).GetText()
+            # for playlist, use the default file name
+            if YouTubeURLChecker.is_playlist(url): name = u"%(title)s.%(ext)s"
+            urls.append((name, url))
         self.youtubedownloader.download(urls, self.dest_txt.GetValue(),
                                         self.convert_to_mp3_chk.GetValue())
     
     def _check_for_update(self, event):
-        YouTubeDownloaderGuiUpdaterThread(__version__).start()
+        YouTubeDownloaderGUIUpdaterThread(__version__).start()
         self.check_update_btn.Disable()
     
     def _get_update(self, msg):
         model = msg.data
         if model.error:
             wx.MessageDialog(frame, message=model.message, 
-                             caption="Check for Update", 
+                             caption=u"Check for Update", 
                              style=wx.ICON_ERROR | wx.CENTRE).ShowModal()
         else:
             wx.MessageDialog(frame, message=model.message, 
-                             caption="Check for Update", 
+                             caption=u"Check for Update", 
                              style=wx.ICON_INFORMATION | wx.CENTRE).ShowModal()
         self.check_update_btn.Enable()
     
     def _get_video_title(self, msg):
         model = msg.data
         if model.error:
-            wx.MessageDialog(None, model.message, "Error", 
+            wx.MessageDialog(None, model.message, u"Error", 
                              wx.OK | wx.ICON_ERROR).ShowModal()
             self.url_list.DeleteItem(model.index)
         else:
             self.url_list.SetStringItem(model.index, 0, model.filename)
         self.download_btn.Enable()
-        
+
+
+class YouTubeDownloaderGUISettings(object):
+    def __init__(self):
+        self.filename = "settings.ini"
+        self.cp = ConfigParser()
+        if os.path.exists(self.filename):
+            with open(self.filename, "rb") as settings_file:
+                self.cp.readfp(settings_file)
+    
+    def set(self, section, key, value):
+        if not self.cp.has_section(section):
+            self.cp.add_section(section)
+        self.cp.set(section, key, value)
+        with open(self.filename, "wb") as settings_file:
+            self.cp.write(settings_file)
+    
+    def get(self, section, key):
+        if self.cp.has_option(section, key):
+            return self.cp.get(section, key)
+        return None
+    
+    
 class EditableTextListCtrl(wx.ListCtrl, TextEditMixin):
     def __init__(self, parent, style=0):
         wx.ListCtrl.__init__(self, parent, style=style)
@@ -255,67 +290,72 @@ class EditableTextListCtrl(wx.ListCtrl, TextEditMixin):
     def OpenEditor(self, col, row):
         if col == 1: return
         else: TextEditMixin.OpenEditor(self, col, row)
- 
+
+
 class FileNameSanitizer(object):
-    def __init__(self):
-        self.illegal_chars = ["\\", "/", ":", "*", "?", "\"", "<", ">", "|"]
-        
-    def contains_illegal_chars(self, filename):
-        for char in self.illegal_chars:
+    ILLEGAL_CHARS = [u"\\", u"/", u":", u"*", u"?", u"\"", u"<", u">", u"|"]
+    
+    @staticmethod    
+    def contains_illegal_chars(filename):
+        for char in FileNameSanitizer.ILLEGAL_CHARS:
             if char in filename: return True
         return False
-        
-    def sanitize(self, filename):
-        sanitized_filename = filename
-        for char in self.illegal_chars:
-            sanitized_filename = sanitized_filename.replace(char, "")
-        return sanitized_filename
+    
+    @staticmethod
+    def sanitize(filename):
+        return youtubedl.sanitize_title(filename)
 
-mutex = threading.Lock()
 
-class VideoTitleRetrieverModel:
-    def __init__(self, index, filename, error=False, message=""):
+class VideoTitleRetrieverModel(object):
+    def __init__(self, index, filename, error=False, message=u""):
         self.error = error
         self.message = message
         self.index = index
         self.filename = filename
+
+
+class CustomFileDownloader(youtubedl.FileDownloader):
+    """ youtubedl.FileDownloader doesn't store the info_dict returned from
+        youtubedl.InfoExtractor. This class subclasses youtubedl.FileDownloader
+        to store the info_dict as an instance variable """
+    def __init__(self, params):
+        youtubedl.FileDownloader.__init__(self, params)
+        
+    def process_info(self, info_dict):
+        self.info_dict = info_dict
+        youtubedl.FileDownloader.process_info(self, info_dict)
+        
+    def clear_info(self):
+        self.info_dict = None
+        
     
 class VideoTitleRetrieverThread(threading.Thread):
     def __init__(self, url, index):
         threading.Thread.__init__(self)
         self.url = url
         self.index = index
-        self.filename_sanitizer = FileNameSanitizer()
     
     def run(self):
-        fd = youtubedl.FileDownloader({'forcetitle':True,
-                                       'simulate':True,
-                                       'outtmpl':u'%(id)s.%(ext)s',
-                                       'quiet':True})
+        fd = CustomFileDownloader({"simulate": True,
+                                   "outtmpl": u"%(title)s.%(ext)s",
+                                   "quiet": True})
         yie = youtubedl.YoutubeIE(fd)
         yie.initialize()
         try:
             mutex.acquire()
-            filename = self._capture(yie.extract, self.url).strip() + ".flv"
-            filename = self.filename_sanitizer.sanitize(filename)
+            yie.extract(self.url)
+            filename = u'%(title)s.%(ext)s' % fd.info_dict
+            # make sure to clear the info afterwards
+            fd.clear_info()
             model = VideoTitleRetrieverModel(self.index, filename)
             wx.CallAfter(Publisher().sendMessage, "video_title", model)
         except youtubedl.DownloadError as e:
-            msg = "Unable to download the video. Is the URL correct?"
+            msg = u"Unable to download the video. Is the URL correct?"
             model = VideoTitleRetrieverModel(self.index, "", True, msg)
             wx.CallAfter(Publisher().sendMessage, "video_title", model)
         finally:    
             mutex.release()
-    
-    def _capture(self, func, *args, **kwargs):
-        tmpstdout = sys.stdout
-        sys.stdout = cStringIO.StringIO()
-        try:
-            func(*args, **kwargs)
-        finally:
-            value = sys.stdout.getvalue()
-            sys.stdout = tmpstdout
-        return value
+
 
 class YouTubeDownloaderThread(threading.Thread):
     def __init__(self, directory, filename, url, to_mp3):
@@ -333,6 +373,7 @@ class YouTubeDownloaderThread(threading.Thread):
         else: cmdlinebuilder = LinuxCmdLineBuilder(path, self.url,
                                                    self.to_mp3)
         subprocess.call(cmdlinebuilder.build())
+
             
 class CommandLineBuilder(object):
     def __init__(self, path, url, to_mp3):
@@ -357,13 +398,15 @@ class CommandLineBuilder(object):
         
     def _getshell(self): pass
     def _getprogram(self): pass
-    
+
+   
 class WindowsCmdLineBuilder(CommandLineBuilder):
     def _getprogram(self):
         return ["youtubedl.exe"]
     
     def _getshell(self):
         return ["cmd", "/C", "start"]
+
 
 class LinuxCmdLineBuilder(CommandLineBuilder):
     def _getprogram(self):
@@ -372,20 +415,22 @@ class LinuxCmdLineBuilder(CommandLineBuilder):
     def _getshell(self):
         return ["xterm", "-e"]
 
+
 class YouTubeDownloader(object):
     def download(self, url_list, dest_dir, to_mp3=False):
         for filename, url in url_list:
             thread = YouTubeDownloaderThread(dest_dir, filename, url, to_mp3)
             thread.start()
 
-class YouTubeDownloaderGuiUpdater:
+
+class YouTubeDownloaderGUIUpdater(object):
     def __init__(self, current_version):
         self.current_version = current_version
         
     def check_for_update(self):
         f = urllib2.urlopen(UPDATE_URL)
         reply = f.read()
-        m = re.search("<td class=\"source\">(.*)<br></td>", reply)
+        m = re.search(u"<td class=\"source\">(.*)<br></td>", reply)
         if not m: return
         latest_version = m.group(1)
         if self._is_latest_version(self.current_version, latest_version):
@@ -401,37 +446,47 @@ class YouTubeDownloaderGuiUpdater:
                 return False
         return True
 
-class YouTubeDownloaderGuiUpdaterModel:
+
+class YouTubeDownloaderGUIUpdaterModel(object):
     def __init__(self, error, message):
         self.error = error
         self.message = message
-        
-class YouTubeDownloaderGuiUpdaterThread(threading.Thread):
+
+
+class YouTubeDownloaderGUIUpdaterThread(threading.Thread):
     def __init__(self, current_version):
         threading.Thread.__init__(self)
         self.current_version = current_version
-        self.updater = YouTubeDownloaderGuiUpdater(current_version)
+        self.updater = YouTubeDownloaderGUIUpdater(current_version)
         
     def run(self):
         try:
             latest_version = self.updater.check_for_update()
             if latest_version == self.current_version:
-                msg = ("You already have the latest version (" + 
+                msg = (u"You already have the latest version (" + 
                        latest_version + ")")
             else:
-                msg = ("A new version (" + latest_version + 
-                       ") is available.\n\nYou can download it from " + 
+                msg = (u"A new version (" + latest_version + 
+                       u") is available.\n\nYou can download it from " + 
                        DOWNLOAD_URL)
-            model = YouTubeDownloaderGuiUpdaterModel(False, msg)
+            model = YouTubeDownloaderGUIUpdaterModel(False, msg)
             wx.CallAfter(Publisher().sendMessage, "update", model)
         except urllib2.HTTPError:
-            msg = "Unable to check for update!"
-            model = YouTubeDownloaderGuiUpdaterModel(False, msg)
+            msg = u"Unable to check for update!"
+            model = YouTubeDownloaderGUIUpdaterModel(False, msg)
             wx.CallAfter(Publisher().sendMessage, "update", model)
-    
-if __name__ == '__main__':
+
+
+class YouTubeURLChecker(object):
+    @staticmethod
+    def is_playlist(url):
+        return (True if re.match(youtubedl.YoutubePlaylistIE._VALID_URL, url)
+                else False)
+
+
+if __name__ == "__main__":
     app = wx.PySimpleApp()
-    frame = YouTubeDownloaderGuiFrame()
+    frame = YouTubeDownloaderGUIFrame()
     frame.Centre()
     frame.Show(True)
     app.MainLoop()
